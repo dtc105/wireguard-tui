@@ -1,25 +1,22 @@
 pub enum Focus {
-    Main(MainFocus),
-    Add(AddFocus),
+    Home(HomeSection),
+    CreateForm(ClientFormField),
+    EditForm(ClientFormField)
 }
 
-impl Default for Focus {
-    fn default() -> Self {
-        Self::Main(MainFocus::default())
+impl Focus {
+    pub fn new() -> Self {
+        Self::Home(HomeSection::Clients)
     }
 }
 
-#[derive(Default)]
-pub enum MainFocus {
-    #[default]
+pub enum HomeSection {
     Clients,
-    Logs,
+    Logs
 }
 
-#[derive(Default)]
-pub enum AddFocus {
-    #[default]
+pub enum ClientFormField {
     Name,
     Address,
-    PublicKey,
+    PublicKey
 }
