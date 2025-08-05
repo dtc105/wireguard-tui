@@ -1,7 +1,6 @@
 mod app;
 mod dto;
-mod focus;
-mod pages;
+mod modal;
 
 use crate::app::App;
 
@@ -11,17 +10,22 @@ use ratatui::{
     crossterm::{
         event::{DisableMouseCapture, EnableMouseCapture},
         execute,
-        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+        terminal::{
+            EnterAlternateScreen,
+            LeaveAlternateScreen,
+            disable_raw_mode,
+            enable_raw_mode
+        },
     },
 };
-use std::{error::Error, io};
+use std::io::{stdout, Result};
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     // Init config TODO!
 
     // Initialize the terminal
     enable_raw_mode()?;
-    let mut stdout = io::stdout();
+    let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
     // Initialize the app state
@@ -41,5 +45,5 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     terminal.show_cursor()?;
 
-    Ok(())
+    result
 }
