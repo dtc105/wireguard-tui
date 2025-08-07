@@ -1,77 +1,47 @@
 use crate::{
-    dto::{ClientForm, Clients, Logs},
+    dto::{Client, ClientForm, Clients, Logs},
     modal::Modal,
+    wireguard::Wireguard,
 };
 
 use ratatui::{
+    Frame, Terminal,
     backend::Backend,
-    buffer::Buffer,
-    crossterm::event::{
-        read,
-        Event,
-        KeyCode,
-        KeyEvent,
-        KeyEventKind,
-        KeyModifiers
-    },
-        layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect
-    },
+    crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, read},
+    layout::{Alignment, Constraint, Direction, Layout},
     style::Style,
     text::Text,
-    widgets::{
-        Block,
-        BorderType,
-        Cell,
-        HighlightSpacing,
-        List,
-        ListItem,
-        ListState,
-        Paragraph,
-        Row,
-        StatefulWidget,
-        Table,
-        TableState,
-        Widget
-    },
-    Frame,
-    Terminal
+    widgets::{Block, BorderType, Cell, HighlightSpacing, List, ListItem, Paragraph, Row, Table},
 };
 use std::io::Result;
 
 enum Focus {
     Client,
-    Log
+    Log,
 }
 
 pub struct App<'a> {
-    pub focus: Focus,
+    focus: Focus,
     pub modal: Option<Modal<'a>>,
-    pub clients: Clients,
-    pub logs: Logs
+    clients: Clients,
+    logs: Logs,
 }
 
 impl<'a> App<'a> {
     pub fn new() -> Self {
+        let wg = Wireguard::new();
         Self {
             focus: Focus::Client,
             modal: None,
-            clients: Clients::dummy(),
-            logs: Logs::dummy()
+            clients: Clients::init(wg),
+            logs: Logs::dummy(),
         }
     }
 
     fn create_header() -> Paragraph<'a> {
         let block = Block::bordered().border_type(BorderType::Rounded);
 
-        Paragraph::new(Text::styled(
-            "Wireguard TUI",
-            Style::default()
-        ))
+        Paragraph::new(Text::styled("Wireguard TUI", Style::default()))
             .alignment(Alignment::Center)
             .block(block)
     }
@@ -80,11 +50,11 @@ impl<'a> App<'a> {
         let block = Block::bordered().border_type(BorderType::Rounded);
 
         Paragraph::new(Text::styled(
-            "(ESC) quit | (TAB) switch focus | (g) top | (G) bottom | (j) down | (k) up",
-            Style::default()
+            "(Esc) quit | (Tab) switch focus | (g) top | (G) bottom | (j) down | (k) up",
+            Style::default(),
         ))
-            .alignment(Alignment::Center)
-            .block(block)
+        .alignment(Alignment::Center)
+        .block(block)
     }
 
     fn create_clients(&self) -> Table<'a> {
@@ -100,7 +70,8 @@ impl<'a> App<'a> {
             .height(1);
 
         let rows = self.clients.data.iter().map(|client| {
-            client.ref_array()
+            client
+                .ref_array()
                 .into_iter()
                 .map(|content| Cell::from(Text::from(content.clone())))
                 .collect::<Row>()
@@ -113,13 +84,13 @@ impl<'a> App<'a> {
             [
                 Constraint::Percentage(30),
                 Constraint::Percentage(30),
-                Constraint::Percentage(40)
-            ]
+                Constraint::Percentage(40),
+            ],
         )
-            .block(block)
-            .header(header)
-            .highlight_symbol(">")
-            .highlight_spacing(HighlightSpacing::Always)
+        .block(block)
+        .header(header)
+        .highlight_symbol(">")
+        .highlight_spacing(HighlightSpacing::Always)
     }
 
     fn create_logs(&self) -> List<'a> {
@@ -127,7 +98,10 @@ impl<'a> App<'a> {
             .border_type(BorderType::Rounded)
             .title("Logs");
 
-        let rows = self.logs.data.iter()
+        let rows = self
+            .logs
+            .data
+            .iter()
             .map(|log| ListItem::from(log.to_string()))
             .collect::<Vec<ListItem>>();
 
@@ -143,16 +117,13 @@ impl<'a> App<'a> {
             .constraints([
                 Constraint::Length(3),
                 Constraint::Min(1),
-                Constraint::Length(3)
+                Constraint::Length(3),
             ])
             .split(frame.area());
 
         let main_sections = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(60),
-                Constraint::Percentage(40)
-            ])
+            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(chunks[1]);
 
         let header = App::create_header();
@@ -175,53 +146,44 @@ impl<'a> App<'a> {
             return Modal::handle_key(self, key);
         }
 
-        match key.code {
-            KeyCode::Esc => return Some(Ok(())),
-            KeyCode::Tab => {
-                match &self.focus {
-                    Focus::Client => {
+        match &self.focus {
+            Focus::Client => {
+                match key.code {
+                    KeyCode::Esc => return Some(Ok(())),
+                    KeyCode::Tab => {
                         self.clients.state.select(None);
                         self.logs.state.select_first();
                         self.focus = Focus::Log;
-                    },
-                    Focus::Log => {
-                        self.clients.state.select_first();
-                        self.logs.state.select(None);
-                        self.focus = Focus::Client;
                     }
-                }
-            },
-            KeyCode::Char('g') => {
-                match &self.focus {
-                    Focus::Client => self.clients.state.select_first(),
-                    Focus::Log => self.logs.state.select_first()
-                }
-            },
-            KeyCode::Char('G') => {
-                match &self.focus {
-                    Focus::Client => self.clients.state.select_last(),
-                    Focus::Log => self.logs.state.select_last()
-                }
-            },
-            KeyCode::Char('j') | KeyCode::Down => {
-                match &self.focus {
-                    Focus::Client => self.clients.state.select_next(),
-                    Focus::Log => self.logs.state.select_next()
-                }
-            },
-            KeyCode::Char('k') | KeyCode::Up => {
-                match &self.focus {
-                    Focus::Client => self.clients.state.select_previous(),
-                    Focus::Log => self.logs.state.select_previous()
-                }
-            },
-            KeyCode::Char('a') => {
-                match &self.focus {
-                    Focus::Client => self.modal = Some(Modal::CreateClient(ClientForm::new("Create"))),
-                    _ => ()
-                }
+                    KeyCode::Char('g') => self.clients.state.select_first(),
+                    KeyCode::Char('G') => self.clients.state.select_last(),
+                    KeyCode::Char('j') | KeyCode::Down => self.clients.state.select_next(),
+                    KeyCode::Char('k') | KeyCode::Up => self.clients.state.select_previous(),
+                    KeyCode::Char('a') => {
+                        self.modal = Some(Modal::CreateClient(ClientForm::new("Create Client")))
+                    }
+                    KeyCode::Char('e') => {
+                        self.modal = Some(Modal::EditClient(ClientForm::new("Edit Client")))
+                    }
+                    KeyCode::Char('d') => self.modal = Some(Modal::DeleteClient),
+                    _ => (),
+                };
             }
-            _ => ()
+            Focus::Log => {
+                match key.code {
+                    KeyCode::Esc => return Some(Ok(())),
+                    KeyCode::Tab => {
+                        self.logs.state.select(None);
+                        self.clients.state.select_first();
+                        self.focus = Focus::Log;
+                    }
+                    KeyCode::Char('g') => self.logs.state.select_first(),
+                    KeyCode::Char('G') => self.logs.state.select_last(),
+                    KeyCode::Char('j') | KeyCode::Down => self.logs.state.select_next(),
+                    KeyCode::Char('k') | KeyCode::Up => self.logs.state.select_previous(),
+                    _ => (),
+                };
+            }
         };
 
         None
@@ -233,8 +195,9 @@ impl<'a> App<'a> {
 
             if let Event::Key(key) = read()? {
                 if key.kind == KeyEventKind::Press {
-                    if key.code == KeyCode::Char('c') &&
-                       key.modifiers.contains(KeyModifiers::CONTROL) {
+                    if key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                    {
                         return Ok(());
                     }
 
@@ -246,29 +209,3 @@ impl<'a> App<'a> {
         }
     }
 }
-
-// impl<'a> Widget for App<'a> {
-//     fn render(self, area: Rect) {
-//         let chunks = Layout::default()
-//             .direction(Direction::Vertical)
-//             .constraints([
-//                 Constraint::Length(3),
-//                 Constraint::Min(1),
-//                 Constraint::Length(3)
-//             ])
-//             .split(area);
-
-//         let main_sections = Layout::default()
-//             .direction(Direction::Horizontal)
-//             .constraints([
-//                 Constraint::Percentage(60),
-//                 Constraint::Percentage(40)
-//             ])
-//             .split(chunks[1]);
-
-//         App::render_header(chunks[0], buffer);
-//         App::render_footer(chunks[2], buffer);
-//         App::render_clients(&mut self.clients, main_sections[0], buffer);
-//         App::render_logs(&mut self.logs, main_sections[1], buffer);
-//     }
-// }

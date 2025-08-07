@@ -1,8 +1,9 @@
 mod app;
 mod dto;
 mod modal;
+mod wireguard;
 
-use crate::app::App;
+use crate::{app::App, wireguard::Wireguard};
 
 use ratatui::{
     Terminal,
@@ -10,15 +11,10 @@ use ratatui::{
     crossterm::{
         event::{DisableMouseCapture, EnableMouseCapture},
         execute,
-        terminal::{
-            EnterAlternateScreen,
-            LeaveAlternateScreen,
-            disable_raw_mode,
-            enable_raw_mode
-        },
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
 };
-use std::io::{stdout, Result};
+use std::io::{Result, stdout};
 
 fn main() -> Result<()> {
     // Init config TODO!

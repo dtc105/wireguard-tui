@@ -1,42 +1,17 @@
 use crate::{app::App, dto::ClientForm};
 
 use ratatui::{
-    buffer::Buffer,
+    Frame,
     crossterm::event::{KeyCode, KeyEvent},
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Flex,
-        Layout,
-        Rect
-    },
-    style::Style,
-    text::Text,
-    widgets::{
-        Block,
-        BorderType,
-        Cell,
-        Clear,
-        HighlightSpacing,
-        List,
-        ListItem,
-        ListState,
-        Paragraph,
-        Row,
-        StatefulWidget,
-        Table,
-        TableState,
-        Widget
-    },
-    Frame
+    layout::{Alignment, Constraint, Direction, Flex, Layout, Rect},
+    widgets::{Block, BorderType, Clear, Paragraph},
 };
 use std::io::Result;
 
 pub enum Modal<'a> {
     CreateClient(ClientForm<'a>),
     EditClient(ClientForm<'a>),
-    DeleteClient
+    DeleteClient,
 }
 
 fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
@@ -53,21 +28,24 @@ impl<'a> Modal<'a> {
             .border_type(BorderType::Rounded)
             .title(title);
 
-        Paragraph::new(value.clone())
-            .block(block)
+        Paragraph::new(value.clone()).block(block)
     }
 
     pub fn draw(&self, frame: &mut Frame) {
-        let area = center(
-            frame.area(),
-            Constraint::Length(32),
-            Constraint::Length(12)
-        );
+        let area = center(frame.area(), Constraint::Length(64), Constraint::Length(12));
 
         let title = match self {
             Modal::CreateClient(form) | Modal::EditClient(form) => form.title,
-            Modal::DeleteClient => "Delete"
+            Modal::DeleteClient => "Delete",
         };
+
+        let footer = match self {
+            Modal::CreateClient(_) | Modal::EditClient(_) => {
+                "(Esc) exit | (Tab) next | (Shift + Tab) previous"
+            }
+            Modal::DeleteClient => "Confirm y/N",
+        };
+        let footer = Paragraph::new(footer).alignment(Alignment::Center);
 
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -78,7 +56,8 @@ impl<'a> Modal<'a> {
             .constraints([
                 Constraint::Length(3),
                 Constraint::Length(3),
-                Constraint::Length(3)
+                Constraint::Length(3),
+                Constraint::Length(1),
             ])
             .split(block.inner(area));
 
@@ -87,7 +66,7 @@ impl<'a> Modal<'a> {
 
         let form = match &self {
             Modal::CreateClient(form) | Modal::EditClient(form) => form,
-            _ => return
+            _ => return,
         };
 
         let name_field = Modal::create_field("Name", &form.values.name);
@@ -97,21 +76,20 @@ impl<'a> Modal<'a> {
         frame.render_widget(name_field, inner_sections[0]);
         frame.render_widget(address_field, inner_sections[1]);
         frame.render_widget(public_key_field, inner_sections[2]);
+        frame.render_widget(footer, inner_sections[3]);
     }
 
     pub fn handle_key(app: &mut App, key: KeyEvent) -> Option<Result<()>> {
         if let Some(modal) = &mut app.modal {
             match modal {
-                Modal::CreateClient(form) | Modal::EditClient(form) => {
-                    match key.code {
-                        KeyCode::Esc => app.modal = None,
-                        KeyCode::Enter => (),
-                        KeyCode::Backspace => form.backspace(),
-                        KeyCode::Tab => form.next_field(),
-                        KeyCode::BackTab => form.prev_field(),
-                        KeyCode::Char(chr) => form.add_char(chr),
-                        _ => ()
-                    }
+                Modal::CreateClient(form) | Modal::EditClient(form) => match key.code {
+                    KeyCode::Esc => app.modal = None,
+                    KeyCode::Enter => (),
+                    KeyCode::Backspace => form.backspace(),
+                    KeyCode::Tab => form.next_field(),
+                    KeyCode::BackTab => form.prev_field(),
+                    KeyCode::Char(chr) => form.add_char(chr),
+                    _ => (),
                 },
                 Modal::DeleteClient => {}
             }
