@@ -1,9 +1,10 @@
 mod app;
 mod dto;
 mod modal;
+mod ui;
 mod wireguard;
 
-use crate::{app::App, wireguard::Wireguard};
+use crate::app::App;
 
 use ratatui::{
     Terminal,

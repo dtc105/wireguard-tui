@@ -1,4 +1,7 @@
-use crate::{app::App, dto::ClientForm};
+use crate::{
+    app::App,
+    dto::{Client, ClientForm},
+};
 
 use ratatui::{
     Frame,
@@ -8,9 +11,9 @@ use ratatui::{
 };
 use std::io::Result;
 
-pub enum Modal<'a> {
-    CreateClient(ClientForm<'a>),
-    EditClient(ClientForm<'a>),
+pub enum Modal {
+    CreateClient(ClientForm),
+    EditClient(ClientForm),
     DeleteClient,
 }
 
@@ -22,8 +25,8 @@ fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
     area
 }
 
-impl<'a> Modal<'a> {
-    pub fn create_field(title: &'a str, value: &String) -> Paragraph<'a> {
+impl Modal {
+    pub fn create_field<'a>(title: &'static str, value: &String) -> Paragraph<'a> {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .title(title);
@@ -31,21 +34,11 @@ impl<'a> Modal<'a> {
         Paragraph::new(value.clone()).block(block)
     }
 
-    pub fn draw(&self, frame: &mut Frame) {
+    fn draw_user_form(title: &str, frame: &mut Frame, form: &ClientForm) {
         let area = center(frame.area(), Constraint::Length(64), Constraint::Length(12));
 
-        let title = match self {
-            Modal::CreateClient(form) | Modal::EditClient(form) => form.title,
-            Modal::DeleteClient => "Delete",
-        };
-
-        let footer = match self {
-            Modal::CreateClient(_) | Modal::EditClient(_) => {
-                "(Esc) exit | (Tab) next | (Shift + Tab) previous"
-            }
-            Modal::DeleteClient => "Confirm y/N",
-        };
-        let footer = Paragraph::new(footer).alignment(Alignment::Center);
+        let footer = Paragraph::new("(Esc) exit | (Tab) next | (Shift + Tab) previous")
+            .alignment(Alignment::Center);
 
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -63,11 +56,7 @@ impl<'a> Modal<'a> {
 
         frame.render_widget(Clear, area);
         frame.render_widget(block, area);
-
-        let form = match &self {
-            Modal::CreateClient(form) | Modal::EditClient(form) => form,
-            _ => return,
-        };
+        frame.render_widget(footer, inner_sections[3]);
 
         let name_field = Modal::create_field("Name", &form.values.name);
         let address_field = Modal::create_field("Address", &form.values.address);
@@ -76,7 +65,29 @@ impl<'a> Modal<'a> {
         frame.render_widget(name_field, inner_sections[0]);
         frame.render_widget(address_field, inner_sections[1]);
         frame.render_widget(public_key_field, inner_sections[2]);
-        frame.render_widget(footer, inner_sections[3]);
+    }
+
+    pub fn draw_delete(frame: &mut Frame) {
+        let area = center(frame.area(), Constraint::Length(16), Constraint::Length(4));
+
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .title("Delete Client");
+
+        let message = Paragraph::new("Confirm? y/N")
+            .alignment(Alignment::Center)
+            .block(block);
+
+        frame.render_widget(Clear, area);
+        frame.render_widget(message, area);
+    }
+
+    pub fn draw(&self, frame: &mut Frame) {
+        match self {
+            Modal::CreateClient(form) => Modal::draw_user_form("Add Client", frame, form),
+            Modal::EditClient(form) => Modal::draw_user_form("Edit Client", frame, form),
+            Modal::DeleteClient => Modal::draw_delete(frame),
+        };
     }
 
     pub fn handle_key(app: &mut App, key: KeyEvent) -> Option<Result<()>> {
@@ -91,7 +102,11 @@ impl<'a> Modal<'a> {
                     KeyCode::Char(chr) => form.add_char(chr),
                     _ => (),
                 },
-                Modal::DeleteClient => {}
+                Modal::DeleteClient => match key.code {
+                    KeyCode::Esc | KeyCode::Enter | KeyCode::Char('n') => app.modal = None,
+                    KeyCode::Char('y') => (),
+                    _ => (),
+                },
             }
         }
 

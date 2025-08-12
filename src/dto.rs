@@ -1,7 +1,8 @@
-use crate::{modal::Modal, wireguard::Wireguard};
+use crate::{modal::Modal, wireguard};
 use chrono::{DateTime, Utc};
 use ratatui::widgets::{ListState, TableState};
 
+#[derive(Clone)]
 pub struct Client {
     pub name: String,
     pub address: String,
@@ -27,8 +28,8 @@ impl Clients {
         }
     }
 
-    pub fn init(wireguard_connection: Wireguard) -> Self {
-        let clients = wireguard_connection.get_clients();
+    pub fn init() -> Self {
+        let clients = wireguard::get_clients();
 
         Self {
             data: clients,
@@ -120,17 +121,15 @@ pub enum ClientFocus {
     PublicKey,
 }
 
-pub struct ClientForm<'a> {
-    pub title: &'a str,
+pub struct ClientForm {
     pub values: Client,
-    pub callback: Option<&'a Client>,
+    pub callback: Option<Client>,
     pub focus: ClientFocus,
 }
 
-impl<'a> ClientForm<'a> {
-    pub fn new(title: &'a str) -> Self {
+impl ClientForm {
+    pub fn new() -> Self {
         Self {
-            title,
             values: Client {
                 name: String::new(),
                 address: String::new(),
@@ -141,14 +140,9 @@ impl<'a> ClientForm<'a> {
         }
     }
 
-    pub fn from_client(title: &'a str, client: &'a Client) -> Self {
+    pub fn from_client(client: Client) -> Self {
         Self {
-            title,
-            values: Client {
-                name: String::new(),
-                address: String::new(),
-                public_key: String::new(),
-            },
+            values: client.clone(),
             callback: Some(client),
             focus: ClientFocus::Name,
         }
@@ -186,4 +180,3 @@ impl<'a> ClientForm<'a> {
         };
     }
 }
-
